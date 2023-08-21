@@ -1,0 +1,1 @@
+- to setup XMPP given .bat file was used and given config file.
