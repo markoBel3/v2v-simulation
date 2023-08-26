@@ -7,3 +7,4 @@ open3d
 Pillow
 carla
 spade
+aioconsole

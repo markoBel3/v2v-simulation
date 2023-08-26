@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import glob
 import os
+import re
 import sys
 import time
 import asyncio
@@ -11,7 +12,7 @@ import argparse
 import logging
 from numpy import random
 from helpers.register_user_ejabberd import register_user
-from spade_classes.crash_prevention_spade import CarAgent
+from spade_classes.lane_change_simulation_spade import CarAgent
 
 client = None
 agents = []
@@ -150,22 +151,8 @@ async def main():
         # --------------
         # Spawn vehicles
         # --------------
-        custom_transforms = [carla.Transform(carla.Location(x=19.0, y=141.3, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
-                             carla.Transform(carla.Location(x=13.0, y=141.3, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)), 
-                             carla.Transform(carla.Location(x=7.0, y=141.3, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
-                             carla.Transform(carla.Location(x=1.0, y=141.3, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
-                             carla.Transform(carla.Location(x=-6.0, y=141.3, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
-                             carla.Transform(carla.Location(x=-12.0, y=141.3, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
-                             carla.Transform(carla.Location(x=-18.0, y=141.3, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
-                             carla.Transform(carla.Location(x=-24.0, y=141.3, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
-                             carla.Transform(carla.Location(x=19.0, y=137.4, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
-                             carla.Transform(carla.Location(x=13.0, y=137.4, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)), 
-                             carla.Transform(carla.Location(x=7.0, y=137.4, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
-                             carla.Transform(carla.Location(x=1.0, y=137.4, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
-                             carla.Transform(carla.Location(x=-6.0, y=137.4, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
-                             carla.Transform(carla.Location(x=-12.0, y=137.4, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
-                             carla.Transform(carla.Location(x=-18.0, y=137.4, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
-                            carla.Transform(carla.Location(x=-24.0, y=137.4, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0))]
+        custom_transforms = [#carla.Transform(carla.Location(x=19.0, y=141.3, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
+                            carla.Transform(carla.Location(x=-455, y=16, z=0.6),carla.Rotation(pitch=0.0, yaw=160, roll=0.0))]
         batch = []
         for ct in custom_transforms:
             blueprint = random.choice(blueprints)
@@ -193,11 +180,21 @@ async def main():
                     register_user(f"car{response.actor_id}", f"pass{response.actor_id}")
                     await agent.start()
                 agents.append(agent)
+
+
+        def get_receiver_vehicles(my_id):
+            all_actors = world.get_actors()
+            vehicle_actors = all_actors.filter('vehicle.*')
+            receiver_vehicles = []
+            for vh in vehicle_actors:
+                if vh.id != my_id:
+                    receiver_vehicles.append(f"car{vh.id}@localhost")
+            return receiver_vehicles
         for agent in agents:
-            receivers = [f"{a.name}@localhost" for a in agents if a != agent]
-            agent.receivers = receivers
-
-
+            #receivers = [f"{a.name}@localhost" for a in agents if a != agent]
+            #agent.receivers = receivers
+            my_id = int(re.search(r'\d+', agent.name).group())
+            agent.receivers = get_receiver_vehicles(my_id)
         print('spawned %d vehicles, press Ctrl+C to exit.' % (len(vehicles_list)))
 
         # all traffic lights to green
@@ -210,7 +207,7 @@ async def main():
 
         for actor_id in vehicles_list:
             vehicle = world.get_actor(actor_id)
-            traffic_manager.set_desired_speed(vehicle, 100.0)
+            traffic_manager.set_desired_speed(vehicle, 90.0)
             traffic_manager.distance_to_leading_vehicle(vehicle, 1)
             traffic_manager.ignore_vehicles_percentage(vehicle, 50.0)
 

@@ -11,7 +11,7 @@ import argparse
 import logging
 from numpy import random
 from helpers.register_user_ejabberd import register_user
-from spade_classes.crash_prevention_spade import CarAgent
+from spade_classes.semaphore_simulation_spade import CarAgent
 
 client = None
 agents = []
@@ -41,30 +41,6 @@ async def clear_world():
     global world_clean
     world_clean = True
     time.sleep(2)
-
-def get_actor_blueprints(world, filter, generation):
-    bps = world.get_blueprint_library().filter(filter)
-
-    if generation.lower() == "all":
-        return bps
-
-    # If the filter returns only one bp, we assume that this one needed
-    # and therefore, we ignore the generation
-    if len(bps) == 1:
-        return bps
-
-    try:
-        int_generation = int(generation)
-        # Check if generation is in available generations
-        if int_generation in [1, 2]:
-            bps = [x for x in bps if int(x.get_attribute('generation')) == int_generation]
-            return bps
-        else:
-            print("   Warning! Actor Generation is not valid. No actor will be spawned.")
-            return []
-    except:
-        print("   Warning! Actor Generation is not valid. No actor will be spawned.")
-        return []
 
 async def main():
     argparser = argparse.ArgumentParser(
@@ -136,12 +112,6 @@ async def main():
 
         world.apply_settings(settings)
 
-        blueprints = get_actor_blueprints(world, "vehicle*", "all")
-
-        blueprints = [x for x in blueprints if x.get_attribute('base_type') == 'car']
-
-        blueprints = sorted(blueprints, key=lambda bp: bp.id)
-
         # @todo cannot import these directly.
         SpawnActor = carla.command.SpawnActor
         SetAutopilot = carla.command.SetAutopilot
@@ -167,8 +137,8 @@ async def main():
                              carla.Transform(carla.Location(x=-18.0, y=137.4, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0)),
                             carla.Transform(carla.Location(x=-24.0, y=137.4, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0))]
         batch = []
+        blueprint = random.choice([x for x in world.get_blueprint_library().filter('vehicle.*') if 'tesla' in x.id.lower()])
         for ct in custom_transforms:
-            blueprint = random.choice(blueprints)
             if blueprint.has_attribute('color'):
                 color = random.choice(blueprint.get_attribute('color').recommended_values)
                 blueprint.set_attribute('color', color)
@@ -200,26 +170,25 @@ async def main():
 
         print('spawned %d vehicles, press Ctrl+C to exit.' % (len(vehicles_list)))
 
-        # all traffic lights to green
         traffic_lights = world.get_actors().filter('traffic.traffic_light')
         for tl in traffic_lights:
-            tl.set_state(carla.TrafficLightState.Green)  
+            tl.set_state(carla.TrafficLightState.Red)  
             tl.freeze(True)
-        
-        traffic_manager.global_percentage_speed_difference(-100.0)
 
+        traffic_manager.global_percentage_speed_difference(-100.0)
+        route_to_follow = [carla.Location(x=105, y=-40, z=0.6), carla.Location(x=27.4, y=-66.4, z=0.6)]
         for actor_id in vehicles_list:
             vehicle = world.get_actor(actor_id)
             traffic_manager.set_desired_speed(vehicle, 100.0)
-            traffic_manager.distance_to_leading_vehicle(vehicle, 1)
-            traffic_manager.ignore_vehicles_percentage(vehicle, 50.0)
+            traffic_manager.distance_to_leading_vehicle(vehicle, 2.5)
+            traffic_manager.set_path(vehicle, route_to_follow)
 
         # blueprint_library = world.get_blueprint_library()
         # camera_bp = blueprint_library.find('sensor.camera.rgb')
         # camera_bp.set_attribute('image_size_x', '1920')
         # camera_bp.set_attribute('image_size_y', '1080')
-        camera_location = carla.Location(x=134.66, y=57, z=30.37)
-        camera_rotation = carla.Rotation(pitch=-33.9, yaw=131.84, roll=0.0)
+        camera_location = carla.Location(x=123.42, y=72.08, z=41.52)
+        camera_rotation = carla.Rotation(pitch=-63.41, yaw=-167.49, roll=0.0)
         camera_transform = carla.Transform(camera_location, camera_rotation)
         # global camera
         # camera = world.spawn_actor(camera_bp, camera_transform)

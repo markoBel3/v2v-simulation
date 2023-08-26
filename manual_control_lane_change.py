@@ -10,7 +10,7 @@
 # documented example, please take a look at tutorial.py.
 
 # modified by Marko Belusic
-# use with crash_prevention.py
+# use with lane_change_simulation.py
 
 """
 Welcome to CARLA manual control.
@@ -74,7 +74,7 @@ import threading
 import spade
 from helpers.register_user_ejabberd import register_user
 
-from spade_classes.crash_prevention_spade import CarAgent
+from spade_classes.lane_change_simulation_spade import CarAgent
 
 
 try:
@@ -159,6 +159,28 @@ except ImportError:
 # -- Global functions ----------------------------------------------------------
 # ==============================================================================
 
+dict_positions = {}
+dict_vehicle_speed_list = {}
+
+def getting_closer(positions, my_position):
+    distance = 10000
+    count = 0
+    for pos in positions:
+        dist_to_compare = pos.distance(my_position)
+        if dist_to_compare < distance:
+            distance = dist_to_compare
+            count += 1
+    if count >= 4:
+        return True
+    else:
+        return False
+
+def get_vehicle_approaching_status(my_speed, my_position):
+    global dict_vehicle_speed_list
+    for key in dict_vehicle_speed_list:
+        if dict_vehicle_speed_list[key] > my_speed and getting_closer(dict_positions[key], my_position):
+            return "WARNING - CAR IS GETTING CLOSE"
+    return "No threat"
 async def create_spade_agent():
     global world
     while not world:
@@ -180,7 +202,12 @@ async def create_spade_agent():
             print("Loaded vehicles")
         if not agent.is_alive():
             break
-        await asyncio.sleep(2)
+        global dict_positions
+        global dict_vehicle_speed_list
+        global my_speed
+        dict_positions = agent.dict_positions
+        dict_vehicle_speed_list = agent.dict_vehicle_speed_list
+        await asyncio.sleep(1)
 
 
 def get_receiver_vehicles():
@@ -326,10 +353,10 @@ class World(object):
                 print('There are no spawn points available in your map/town.')
                 print('Please add some Vehicle Spawn Point to your UE4 scene.')
                 sys.exit(1)
-            spawn_point_sim = carla.Transform(carla.Location(x=-41.6, y=74, z=0.6),carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0))
+            spawn_point = carla.Transform(carla.Location(x=-514, y=105, z=0.6),carla.Rotation(pitch=0.0, yaw=91, roll=0.0))
             #spawn_points = self.map.get_spawn_points()
             #spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
-            self.player = self.world.try_spawn_actor(blueprint, spawn_point_sim)
+            self.player = self.world.try_spawn_actor(blueprint, spawn_point)
             self.show_vehicle_telemetry = False
             self.modify_vehicle_physics(self.player)
         # Set up the sensors.
@@ -756,6 +783,7 @@ class HUD(object):
         max_col = max(1.0, max(collision))
         collision = [x / max_col for x in collision]
         vehicles = world.world.get_actors().filter('vehicle.*')
+        my_speed = 3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2)
         self._info_text = [
             'Server:  % 16.0f FPS' % self.server_fps,
             'Client:  % 16.0f FPS' % clock.get_fps(),
@@ -764,13 +792,12 @@ class HUD(object):
             'Map:     % 20s' % world.map.name.split('/')[-1],
             'Simulation time: % 12s' % datetime.timedelta(seconds=int(self.simulation_time)),
             '',
-            'Speed:   % 15.0f km/h' % (3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2)),
+            'Speed:   % 15.0f km/h' % (my_speed),
             u'Compass:% 17.0f\N{DEGREE SIGN} % 2s' % (compass, heading),
-            'Accelero: (%5.1f,%5.1f,%5.1f)' % (world.imu_sensor.accelerometer),
-            'Gyroscop: (%5.1f,%5.1f,%5.1f)' % (world.imu_sensor.gyroscope),
             'Location:% 20s' % ('(% 5.1f, % 5.1f, % 5.1f)' % (t.location.x, t.location.y, t.rotation.yaw)),
             'GNSS:% 24s' % ('(% 2.6f, % 3.6f)' % (world.gnss_sensor.lat, world.gnss_sensor.lon)),
             'Height:  % 18.0f m' % t.location.z,
+            f'Vehicle approaching: {get_vehicle_approaching_status(my_speed, carla.Location(x=t.location.x, y=t.location.y, z=t.location.z))}',
             '']
         if isinstance(c, carla.VehicleControl):
             self._info_text += [
@@ -1296,7 +1323,7 @@ def game_loop(args):
         client = carla.Client(args.host, args.port)
         client.set_timeout(2000.0)
 
-        sim_world = client.get_world()
+        sim_world = client.load_world("Town04")
         if args.sync:
             print("runnig sync")
             original_settings = sim_world.get_settings()
