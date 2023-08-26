@@ -9,5 +9,14 @@ This is a supplemental code part of the master thesis.
 # Running the simulation code
 - start Carla
 - start XMPP server
+## Crash Prevention Simulation
 - python manual_control.py
 - python crash_prevention.py --asynch
+
+## Lane Change Assist Simulation
+- python manual_control_lane_change.py
+- python lane_change_simulation.py --asynch
+
+## Road Congestion Improvement Using Semaphore Messages
+- python semaphore_simulation.py --asynch
+- python semaphore_control.py
